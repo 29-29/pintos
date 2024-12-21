@@ -28,6 +28,8 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -93,6 +95,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -240,6 +243,21 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
+  intr_set_level (old_level);
+}
+
+void 
+thread_sleep (int64_t ticks)
+{
+  enum intr_level old_level;
+
+  old_level = intr_disable ();
+  struct thread *t = thread_current ();
+
+	ASSERT (t->status != THREAD_BLOCKED);
+  t->status = THREAD_BLOCKED;
+  t->wakeup_tick = ticks;
+
   intr_set_level (old_level);
 }
 
