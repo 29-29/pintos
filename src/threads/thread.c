@@ -247,7 +247,7 @@ thread_unblock (struct thread *t)
 }
 
 void 
-thread_sleep (int64_t ticks, struct list *sleep_list)
+thread_sleep (int64_t ticks)
 {
   struct thread* curthread;
   enum intr_level curlevel;
@@ -255,9 +255,26 @@ thread_sleep (int64_t ticks, struct list *sleep_list)
   curlevel = intr_disable ();
   curthread = thread_current ();
   curthread->wakeup_tick = ticks;
-  list_insert_ordered (sleep_list, &curthread->elem, cmp_waketick, NULL);
+  list_insert_ordered (&sleep_list, &curthread->elem, cmp_waketick, NULL);
   thread_block ();
   intr_set_level (curlevel);
+}
+
+void
+thread_wake (int64_t ticks)
+{
+  struct list_elem *head;
+  struct thread *hthread;
+
+  while (!list_empty (&sleep_list))
+  {
+    head = list_front (&sleep_list);
+    hthread = list_entry (head, struct thread, elem);
+    if (hthread->wakeup_tick > ticks)
+      break;
+    list_remove (head);
+    thread_unblock (hthread);
+  }
 }
 
 /* Returns the name of the running thread. */

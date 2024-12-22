@@ -7,7 +7,6 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
-#include "kernel/list.h"  
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -20,8 +19,6 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
-
-struct list sleep_list;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
@@ -40,8 +37,6 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-
-  list_init(&sleep_list);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -99,7 +94,7 @@ timer_sleep (int64_t ticks)
 
   int64_t start = timer_ticks ();
   ASSERT (intr_get_level () == INTR_ON);
-  thread_sleep(start + ticks, &sleep_list);
+  thread_sleep(start + ticks);
   // curlevel = intr_disable ();
   // curthread = thread_current ();
   // curthread->wakeup_tick = start + ticks;
@@ -182,26 +177,10 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-  struct list_elem *head;
-  struct thread *hthread;
-
   ticks++;
   thread_tick ();
 
-  while (!list_empty (&sleep_list))
-  {
-    head = list_front (&sleep_list);
-    hthread = list_entry (head, struct thread, elem);
-    
-    /* this says that if the wakeup tick of the thread is ahead of the current,
-    then this thread won't be woken up yet, as well as the other threads */
-    if (hthread->wakeup_tick > ticks)
-      break;
-
-    list_remove (head);
-    thread_unblock (hthread);
-    
-  }
+  thread_wake (ticks);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
