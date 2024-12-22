@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include "kernel/list.h"  
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -93,10 +94,18 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
+  // struct thread* curthread;
+  // enum intr_level curlevel;
 
+  int64_t start = timer_ticks ();
   ASSERT (intr_get_level () == INTR_ON);
-  thread_sleep(start + ticks);
+  thread_sleep(start + ticks, &sleep_list);
+  // curlevel = intr_disable ();
+  // curthread = thread_current ();
+  // curthread->wakeup_tick = start + ticks;
+  // list_insert_ordered (&sleep_list, &curthread->elem, cmp_waketick, NULL);
+  // thread_block ();
+  // intr_set_level (curlevel);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -185,11 +194,11 @@ timer_interrupt (struct intr_frame *args UNUSED)
     hthread = list_entry (head, struct thread, elem);
     
     /* this says that if the wakeup tick of the thread is ahead of the current,
-    then this thread won't be woken up yet. */
+    then this thread won't be woken up yet, as well as the other threads */
     if (hthread->wakeup_tick > ticks)
       break;
 
-    list_pop_front (&sleep_list);
+    list_remove (head);
     thread_unblock (hthread);
     
   }

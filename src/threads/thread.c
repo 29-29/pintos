@@ -247,19 +247,17 @@ thread_unblock (struct thread *t)
 }
 
 void 
-thread_sleep (int64_t ticks)
+thread_sleep (int64_t ticks, struct list *sleep_list)
 {
-  enum intr_level old_level;
+  struct thread* curthread;
+  enum intr_level curlevel;
 
-  old_level = intr_disable ();
-  struct thread *t = thread_current ();
-
-	ASSERT (t->status != THREAD_BLOCKED);
-  t->status = THREAD_BLOCKED;
-  t->wakeup_tick = ticks;
-  list_insert_ordered(&sleep_list, &t->elem, cmp_waketick, NULL);
+  curlevel = intr_disable ();
+  curthread = thread_current ();
+  curthread->wakeup_tick = ticks;
+  list_insert_ordered (sleep_list, &curthread->elem, cmp_waketick, NULL);
   thread_block ();
-  intr_set_level (old_level);
+  intr_set_level (curlevel);
 }
 
 /* Returns the name of the running thread. */
