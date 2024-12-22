@@ -249,16 +249,32 @@ thread_unblock (struct thread *t)
 void 
 thread_sleep (int64_t ticks)
 {
-  enum intr_level old_level;
+  struct thread* curthread;
+  enum intr_level curlevel;
 
-  old_level = intr_disable ();
-  struct thread *t = thread_current ();
+  curlevel = intr_disable ();
+  curthread = thread_current ();
+  curthread->wakeup_tick = ticks;
+  list_insert_ordered (&sleep_list, &curthread->elem, cmp_waketick, NULL);
+  thread_block ();
+  intr_set_level (curlevel);
+}
 
-	ASSERT (t->status != THREAD_BLOCKED);
-  t->status = THREAD_BLOCKED;
-  t->wakeup_tick = ticks;
+void
+thread_wake (int64_t ticks)
+{
+  struct list_elem *head;
+  struct thread *hthread;
 
-  intr_set_level (old_level);
+  while (!list_empty (&sleep_list))
+  {
+    head = list_front (&sleep_list);
+    hthread = list_entry (head, struct thread, elem);
+    if (hthread->wakeup_tick > ticks)
+      break;
+    list_remove (head);
+    thread_unblock (hthread);
+  }
 }
 
 /* Returns the name of the running thread. */
@@ -394,7 +410,7 @@ thread_get_recent_cpu (void)
   /* Not yet implemented. */
   return 0;
 }
-
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -597,7 +613,16 @@ allocate_tid (void)
 
   return tid;
 }
-
+
+bool
+cmp_waketick (const struct list_elem *a, const struct list_elem *b, void* aux)
+{
+  struct thread *first = list_entry (a, struct thread, elem);
+  struct thread *second = list_entry (b, struct thread, elem);
+
+  return first->wakeup_tick < second->wakeup_tick;
+}
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);

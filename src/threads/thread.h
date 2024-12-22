@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include <kernel/list.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -122,6 +123,7 @@ tid_t thread_create (const char *name, int priority, thread_func *, void *);
 void thread_block (void);
 void thread_unblock (struct thread *);
 void thread_sleep (int64_t);
+void thread_wake (int64_t);
 
 struct thread *thread_current (void);
 tid_t thread_tid (void);
@@ -141,5 +143,7 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+bool cmp_waketick (const struct list_elem*, const struct list_elem*, void*);
 
 #endif /* threads/thread.h */
