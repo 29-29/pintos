@@ -20,6 +20,8 @@
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
 
+struct list sleep_list;
+
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
@@ -37,6 +39,8 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+
+  list_init(&sleep_list);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -92,8 +96,7 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
-  if (timer_elapsed (start) < ticks) 
-    thread_sleep(start + ticks);
+  thread_sleep(start + ticks);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -165,13 +168,31 @@ timer_print_stats (void)
 {
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
+  struct list_elem *head;
+  struct thread *hthread;
+
   ticks++;
   thread_tick ();
+
+  while (!list_empty (&sleep_list))
+  {
+    head = list_front (&sleep_list);
+    hthread = list_entry (head, struct thread, elem);
+    
+    /* this says that if the wakeup tick of the thread is ahead of the current,
+    then this thread won't be woken up yet. */
+    if (hthread->wakeup_tick > ticks)
+      break;
+
+    list_pop_front (&sleep_list);
+    thread_unblock (hthread);
+    
+  }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
